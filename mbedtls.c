@@ -450,7 +450,7 @@ int ssl_write(void *ssl, const void *buf, int len)
     return done;
 }
 
-int ssl_read(void *ssl, void *buf, int len, bool *eof)
+int ssl_read(void *ssl, void *buf, int len)
 {
     int ret = mbedtls_ssl_read(ssl, (unsigned char *)buf, len);
 
@@ -458,19 +458,14 @@ int ssl_read(void *ssl, void *buf, int len, bool *eof)
 
     if (ret < 0) {
         if (ssl_do_wait(ret))
-            return 0;
+            return SSL_PENDING;
 
-        if (ret == MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY) {
-            *eof = true;
+        if (ret == MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY)
             return 0;
-        }
 
         ssl_err_code = ret;
-        return -1;
+        return SSL_ERROR;
     }
-
-    if (ret == 0)
-        *eof = true;
 
     return ret;
 }

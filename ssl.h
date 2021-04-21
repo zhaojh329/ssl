@@ -29,8 +29,8 @@
 
 enum {
     SSL_OK = 0,
-    SSL_PENDING = -1,
-    SSL_ERROR = -2
+    SSL_ERROR = -1,
+    SSL_PENDING = -2
 };
 
 extern int ssl_err_code;
@@ -55,17 +55,7 @@ int ssl_set_require_validation(struct ssl_context *ctx, bool require);
 
 void ssl_set_server_name(void *ssl, const char *name);
 
-/*
- * -1:  error
- * 0:   pending or eof
- * > 0: success
- */
-int ssl_read(void *ssl, void *buf, int len, bool *eof);
-
-/*
- * -1:   error
- * >= 0: success
- */
+int ssl_read(void *ssl, void *buf, int len);
 int ssl_write(void *ssl, const void *buf, int len);
 
 int ssl_connect(void *ssl, bool server,
