@@ -190,6 +190,9 @@ struct ssl_context *ssl_context_new(bool server)
 
 void ssl_context_free(struct ssl_context *ctx)
 {
+    if (!ctx)
+        return;
+
     SSL_CTX_free((void *)ctx);
 }
 
