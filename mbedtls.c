@@ -367,6 +367,9 @@ void *ssl_session_new(struct ssl_context *ctx, int sock)
 
 void ssl_session_free(void *ssl)
 {
+    if (!ssl)
+        return;
+
     mbedtls_ssl_free(ssl);
     free(ssl);
 }

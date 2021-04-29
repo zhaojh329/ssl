@@ -269,6 +269,9 @@ void *ssl_session_new(struct ssl_context *ctx, int sock)
 
 void ssl_session_free(void *ssl)
 {
+    if (!ssl)
+        return;
+
     SSL_shutdown(ssl);
     SSL_free(ssl);
 }
