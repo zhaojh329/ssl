@@ -46,7 +46,7 @@ set(WOLFSSL_LIBRARIES ${WOLFSSL_LIBRARY})
 
 include(FindPackageHandleStandardArgs)
 
-find_package_handle_standard_args(WOLFSSL
+find_package_handle_standard_args(WolfSSL
     REQUIRED_VARS
         WOLFSSL_LIBRARY
         WOLFSSL_INCLUDE_DIR
