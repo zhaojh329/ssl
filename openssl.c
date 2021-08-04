@@ -71,13 +71,13 @@
                 "TLS13-AES256-GCM-SHA384:"		\
                 ecdhe_aead_ciphers
 #else
-# define tls13_ciphersuites	"TLS_CHACHA20_POLY1305_SHA256:"		\
-                "TLS_AES_128_GCM_SHA256:"		\
-                "TLS_AES_256_GCM_SHA384"
-
 # define top_ciphers							\
                 ecdhe_aead_ciphers
 #endif
+
+# define tls13_ciphersuites	"TLS_CHACHA20_POLY1305_SHA256:"		\
+                "TLS_AES_128_GCM_SHA256:"		\
+                "TLS_AES_256_GCM_SHA384"
 
 #define ecdhe_aead_ciphers						\
                 "ECDHE-ECDSA-CHACHA20-POLY1305:"	\
