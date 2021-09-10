@@ -50,23 +50,22 @@ static void chat(void *ssl, int sock)
             do {
                 ret = ssl_write(ssl, buf, n);
                 if (ret < 0) {
-                    fprintf(stderr, "ssl_write: %s\n", ssl_strerror(ssl_err_code, err_buf, sizeof(err_buf)));       
+                    fprintf(stderr, "ssl_write: %s\n", ssl_last_error_string(err_buf, sizeof(err_buf)));       
                     return;
                 }
             } while (ret == 0);
             printf("Send: %.*s\n", ret, buf);
 
         } else if (FD_ISSET(sock, &rfds)) {
-            bool eof = false;
-            ret = ssl_read(ssl, buf, sizeof(buf), &eof);
+            ret = ssl_read(ssl, buf, sizeof(buf));
             if (ret < 0) {
-                fprintf(stderr, "ssl_read error(%d): %s\n", ssl_err_code, ssl_strerror(ssl_err_code, err_buf, sizeof(err_buf)));
+                fprintf(stderr, "ssl_read: %s\n", ssl_last_error_string(err_buf, sizeof(err_buf)));
                 ssl_session_free(ssl);
                 close(sock);
                 return;
             }
 
-            if (eof) {
+            if (ret == 0) {
                 fprintf(stderr, "Connection closed by peer\n");
                 ssl_session_free(ssl);
                 close(sock);
@@ -105,7 +104,7 @@ static void *connect_ssl(int sock, const char *host)
         ret = ssl_connect(ssl, false, on_verify_error, NULL);
 
         if (ret == SSL_ERROR) {
-            fprintf(stderr, "ssl_connect: %s\n", ssl_strerror(ssl_err_code, err_buf, sizeof(err_buf)));
+            fprintf(stderr, "ssl_connect: %s\n", ssl_last_error_string(err_buf, sizeof(err_buf)));
             return NULL;
         }
     } while (ret == SSL_PENDING);

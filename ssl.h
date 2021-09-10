@@ -33,11 +33,9 @@ enum {
     SSL_PENDING = -2
 };
 
-extern int ssl_err_code;
-
 struct ssl_context;
 
-char *ssl_strerror(int error, char *buffer, int len);
+const char *ssl_last_error_string(char *buf, int len);
 
 struct ssl_context *ssl_context_new(bool server);
 void ssl_context_free(struct ssl_context *ctx);

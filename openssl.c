@@ -40,6 +40,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+#include <string.h>
+
 #include "ssl.h"
 
 #if defined(HAVE_WOLFSSL)
@@ -128,16 +130,27 @@
 struct ssl_context {
 };
 
-int ssl_err_code;
+static int ssl_err_code;
 
-char *ssl_strerror(int error, char *buffer, int len)
+const char *ssl_last_error_string(char *buf, int len)
 {
-    if (error == SSL_ERROR_SSL)
-        error = ERR_peek_last_error();
+    const char *file, *data;
+    int line, flags;
 
-    ERR_error_string_n(error, buffer, len);
+    if (ssl_err_code == SSL_ERROR_SSL) {
+        int used;
 
-    return buffer;
+        ssl_err_code = ERR_peek_last_error_line_data(&file, &line, &data, &flags);
+        ERR_error_string_n(ssl_err_code, buf, len);
+
+        used = strlen(buf);
+
+        snprintf(buf + used, len - used, ":%s:%d:%s", file, line, (flags & ERR_TXT_STRING) ? data : "");
+    } else {
+        ERR_error_string_n(ssl_err_code, buf, len);
+    }
+
+    return buf;
 }
 
 struct ssl_context *ssl_context_new(bool server)

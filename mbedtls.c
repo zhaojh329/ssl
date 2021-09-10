@@ -78,7 +78,7 @@ struct ssl_context {
     int *ciphersuites;
 };
 
-int ssl_err_code;
+static int ssl_err_code;
 
 static int urandom_fd = -1;
 
@@ -142,10 +142,10 @@ static const int default_ciphersuites_client[] =
     0
 };
 
-char *ssl_strerror(int error, char *buffer, int len)
+const char *ssl_last_error_string(char *buf, int len)
 {
-    mbedtls_strerror(error, buffer, len);
-    return buffer;
+    mbedtls_strerror(ssl_err_code, buf, len);
+    return buf;
 }
 
 struct ssl_context *ssl_context_new(bool server)
