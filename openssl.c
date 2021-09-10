@@ -132,7 +132,12 @@ int ssl_err_code;
 
 char *ssl_strerror(int error, char *buffer, int len)
 {
-    return ERR_error_string(error, buffer);
+    if (error == SSL_ERROR_SSL)
+        error = ERR_peek_last_error();
+
+    ERR_error_string_n(error, buffer, len);
+
+    return buffer;
 }
 
 struct ssl_context *ssl_context_new(bool server)
