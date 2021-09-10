@@ -140,7 +140,7 @@ const char *ssl_last_error_string(char *buf, int len)
     if (ssl_err_code == SSL_ERROR_SSL) {
         int used;
 
-        ssl_err_code = ERR_peek_last_error_line_data(&file, &line, &data, &flags);
+        ssl_err_code = ERR_peek_error_line_data(&file, &line, &data, &flags);
         ERR_error_string_n(ssl_err_code, buf, len);
 
         used = strlen(buf);
