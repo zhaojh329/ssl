@@ -279,8 +279,12 @@ void *ssl_session_new(struct ssl_context *ctx, int sock)
 {
     void *ssl = SSL_new((void *)ctx);
 
-    if (ssl)
-        SSL_set_fd(ssl, sock);
+    if (!ssl)
+        return NULL;
+
+    SSL_set_fd(ssl, sock);
+
+    SSL_set_mode(ssl, SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER | SSL_MODE_ENABLE_PARTIAL_WRITE);
 
     return ssl;
 }
