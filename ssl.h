@@ -56,7 +56,7 @@ void ssl_set_server_name(void *ssl, const char *name);
 int ssl_read(void *ssl, void *buf, int len);
 int ssl_write(void *ssl, const void *buf, int len);
 
-int ssl_connect(void *ssl, bool server,
-        void (*on_verify_error)(int error, const char *str, void *arg), void *arg);
+int ssl_accept(void *ssl, void (*on_verify_error)(int error, const char *str, void *arg), void *arg);
+int ssl_connect(void *ssl, void (*on_verify_error)(int error, const char *str, void *arg), void *arg);
 
 #endif

@@ -364,8 +364,8 @@ static bool handle_wolfssl_asn_error(void *ssl, int r,
 }
 #endif
 
-int ssl_connect(void *ssl, bool server,
-        void (*on_verify_error)(int error, const char *str, void *arg), void *arg)
+static int ssl_handshake(void *ssl, bool server,
+    void (*on_verify_error)(int error, const char *str, void *arg), void *arg)
 {
     int r;
 
@@ -395,6 +395,16 @@ int ssl_connect(void *ssl, bool server,
     ssl_err_code = r;
 
     return SSL_ERROR;
+}
+
+int ssl_accept(void *ssl, void (*on_verify_error)(int error, const char *str, void *arg), void *arg)
+{
+    return ssl_handshake(ssl, true, on_verify_error, arg);
+}
+
+int ssl_connect(void *ssl, void (*on_verify_error)(int error, const char *str, void *arg), void *arg)
+{
+    return ssl_handshake(ssl, false, on_verify_error, arg);
 }
 
 int ssl_write(void *ssl, const void *buf, int len)

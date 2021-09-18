@@ -95,7 +95,7 @@ static void *ssl_negotiation(int sock)
     printf("Wait SSL negotiation...\n");
 
     do {
-        ret = ssl_connect(ssl, true, on_verify_error, NULL);
+        ret = ssl_accept(ssl, on_verify_error, NULL);
 
         if (ret == SSL_ERROR) {
             fprintf(stderr, "ssl_connect: %s\n", ssl_last_error_string(err_buf, sizeof(err_buf)));
