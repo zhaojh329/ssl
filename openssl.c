@@ -139,8 +139,11 @@ const char *ssl_last_error_string(char *buf, int len)
 
     if (ssl_err_code == SSL_ERROR_SSL) {
         int used;
-
+#if OPENSSL_VERSION_MAJOR < 3
         ssl_err_code = ERR_peek_error_line_data(&file, &line, &data, &flags);
+#else
+        ssl_err_code = ERR_peek_error_all(&file, &line, NULL, &data, &flags);
+#endif
         ERR_error_string_n(ssl_err_code, buf, len);
 
         used = strlen(buf);
