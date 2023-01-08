@@ -149,6 +149,8 @@ const char *ssl_last_error_string(char *buf, int len)
         used = strlen(buf);
 
         snprintf(buf + used, len - used, ":%s:%d:%s", file, line, (flags & ERR_TXT_STRING) ? data : "");
+    } else if (ssl_err_code == SSL_ERROR_SYSCALL) {
+        snprintf(buf, len, "%s", strerror(errno));
     } else {
         ERR_error_string_n(ssl_err_code, buf, len);
     }
