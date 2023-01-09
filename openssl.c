@@ -426,7 +426,7 @@ int ssl_write(void *ssl, const void *buf, int len)
 
     if (ret < 0) {
         ret = SSL_get_error(ssl, ret);
-        if (ret == SSL_ERROR_WANT_WRITE)
+        if (ret == SSL_ERROR_WANT_WRITE || ret == SSL_ERROR_WANT_READ)
             return SSL_PENDING;
 
         ssl_err_code = ret;
@@ -447,7 +447,7 @@ int ssl_read(void *ssl, void *buf, int len)
     ret = SSL_read(ssl, buf, len);
     if (ret < 0) {
         ret = SSL_get_error(ssl, ret);
-        if (ret == SSL_ERROR_WANT_READ)
+        if (ret == SSL_ERROR_WANT_WRITE || ret == SSL_ERROR_WANT_READ)
             return SSL_PENDING;
 
         ssl_err_code = ret;
