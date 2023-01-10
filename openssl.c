@@ -160,7 +160,7 @@ const char *ssl_last_error_string(char *buf, int len)
 
 struct ssl_context *ssl_context_new(bool server)
 {
-    const void *m;
+    const SSL_METHOD *m;
     SSL_CTX *c;
 
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
@@ -184,7 +184,7 @@ struct ssl_context *ssl_context_new(bool server)
     } else
         m = TLS_client_method();
 
-    c = SSL_CTX_new((void *) m);
+    c = SSL_CTX_new(m);
     if (!c)
         return NULL;
 
