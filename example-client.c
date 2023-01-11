@@ -1,7 +1,7 @@
 /*
- * openssl: gcc example-client.c openssl.c -lssl -lcrypto
- * wolfssl: gcc example-client.c openssl.c -lwolfssl -DHAVE_WOLFSSL
- * mbedtls: gcc example-client.c mbedtls.c -lmbedtls -lmbedcrypto -lmbedx509
+ * openssl: gcc example-client.c openssl.c -lssl -lcrypto -o client
+ * wolfssl: gcc example-client.c openssl.c -lwolfssl -DHAVE_WOLFSSL -o client
+ * mbedtls: gcc example-client.c mbedtls.c -lmbedtls -lmbedcrypto -lmbedx509 -o client
  */
 
 #include <sys/select.h>
@@ -12,16 +12,12 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <signal.h>
+#include <string.h>
 #include <netdb.h>
 #include <stdio.h>
 #include <errno.h>
 
-#include "ssl.h"
-
-static void on_verify_error(int error, const char *str, void *arg)
-{
-    fprintf(stderr, "WARNING: SSL certificate error(%d): %s\n", error, str);
-}
+#include "example.h"
 
 static void chat(void *ssl, int sock)
 {
@@ -47,32 +43,29 @@ static void chat(void *ssl, int sock)
         if (FD_ISSET(STDIN_FILENO, &rfds)) {
             int n = read(STDIN_FILENO, buf, sizeof(buf));
 
-            do {
-                ret = ssl_write(ssl, buf, n);
-                if (ret < 0) {
-                    fprintf(stderr, "ssl_write: %s\n", ssl_last_error_string(err_buf, sizeof(err_buf)));       
-                    return;
-                }
-            } while (ret == 0);
+            ret = ssl_write_nonblock(ssl, sock, buf, n);
+            if (ret < 0)
+                return;
             printf("Send: %.*s\n", ret, buf);
 
         } else if (FD_ISSET(sock, &rfds)) {
-            ret = ssl_read(ssl, buf, sizeof(buf));
+            bool closed;
+            ret = ssl_read_nonblock(ssl, sock, buf, sizeof(buf), &closed);
             if (ret < 0) {
-                fprintf(stderr, "ssl_read: %s\n", ssl_last_error_string(err_buf, sizeof(err_buf)));
                 ssl_session_free(ssl);
                 close(sock);
                 return;
             }
 
-            if (ret == 0) {
+            if (closed) {
                 fprintf(stderr, "Connection closed by peer\n");
                 ssl_session_free(ssl);
                 close(sock);
                 return; 
             }
 
-            printf("Recv: %.*s\n", ret, buf);
+            if (ret > 0)
+                printf("Recv: %.*s\n", ret, buf);
         }
     }
 }
@@ -100,14 +93,19 @@ static void *connect_ssl(int sock, const char *host)
 
     ssl_set_server_name(ssl, host);
 
-    do {
+    while (true) {
         ret = ssl_connect(ssl, on_verify_error, NULL);
+        if (ret == SSL_OK)
+            break;
 
         if (ret == SSL_ERROR) {
             fprintf(stderr, "ssl_connect: %s\n", ssl_last_error_string(err_buf, sizeof(err_buf)));
             return NULL;
         }
-    } while (ret == SSL_PENDING);
+
+        if (ssl_select(sock, ret))
+            return NULL;
+    }
 
     printf("SSL negotiation OK\n");
 
@@ -137,6 +135,11 @@ static bool wait_connect(int sock)
     ret = getsockopt(sock, SOL_SOCKET, SO_ERROR, &err, &len);
     if (ret < 0) {
         perror("getsockopt");
+        return false;
+    }
+
+    if (err) {
+        fprintf(stderr, "connect: %s\n", strerror(err));
         return false;
     }
 

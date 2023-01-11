@@ -30,7 +30,8 @@
 enum {
     SSL_OK = 0,
     SSL_ERROR = -1,
-    SSL_PENDING = -2
+    SSL_WANT_READ = -2,
+    SSL_WANT_WRITE = -3
 };
 
 struct ssl_context;

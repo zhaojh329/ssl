@@ -371,6 +371,14 @@ static bool handle_wolfssl_asn_error(void *ssl, int r,
 }
 #endif
 
+#define ssl_need_retry(ret)                     \
+    do {                                        \
+        if (ret == SSL_ERROR_WANT_READ)         \
+            return SSL_WANT_READ;               \
+        else if (ret == SSL_ERROR_WANT_WRITE)   \
+            return SSL_WANT_WRITE;              \
+    } while (0)
+
 static int ssl_handshake(void *ssl, bool server,
     void (*on_verify_error)(int error, const char *str, void *arg), void *arg)
 {
@@ -391,8 +399,8 @@ static int ssl_handshake(void *ssl, bool server,
     }
 
     r = SSL_get_error(ssl, r);
-    if (r == SSL_ERROR_WANT_READ || r == SSL_ERROR_WANT_WRITE)
-        return SSL_PENDING;
+
+    ssl_need_retry(r);
 
 #ifdef WOLFSSL_SSL_H
     if (handle_wolfssl_asn_error(ssl, r, on_verify_error, arg))
@@ -426,9 +434,7 @@ int ssl_write(void *ssl, const void *buf, int len)
 
     if (ret < 0) {
         ret = SSL_get_error(ssl, ret);
-        if (ret == SSL_ERROR_WANT_WRITE || ret == SSL_ERROR_WANT_READ)
-            return SSL_PENDING;
-
+        ssl_need_retry(ret);
         ssl_err_code = ret;
         return SSL_ERROR;
     }
@@ -447,9 +453,7 @@ int ssl_read(void *ssl, void *buf, int len)
     ret = SSL_read(ssl, buf, len);
     if (ret < 0) {
         ret = SSL_get_error(ssl, ret);
-        if (ret == SSL_ERROR_WANT_WRITE || ret == SSL_ERROR_WANT_READ)
-            return SSL_PENDING;
-
+        ssl_need_retry(ret);
         ssl_err_code = ret;
         return SSL_ERROR;
     }

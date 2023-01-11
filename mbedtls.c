@@ -379,16 +379,13 @@ void ssl_set_server_name(void *ssl, const char *name)
     mbedtls_ssl_set_hostname(ssl, name);
 }
 
-static bool ssl_do_wait(int ret)
-{
-    switch(ret) {
-    case MBEDTLS_ERR_SSL_WANT_READ:
-    case MBEDTLS_ERR_SSL_WANT_WRITE:
-        return true;
-    default:
-        return false;
-    }
-}
+#define ssl_need_retry(ret)                         \
+    do {                                            \
+        if (ret == MBEDTLS_ERR_SSL_WANT_READ)       \
+            return SSL_WANT_READ;                   \
+        else if (ret == MBEDTLS_ERR_SSL_WANT_WRITE) \
+            return SSL_WANT_WRITE;                  \
+    } while (0)
 
 static void ssl_verify_cert(void *ssl, void (*on_verify_error)(int error, const char *str, void *arg), void *arg)
 {
@@ -424,8 +421,7 @@ static int ssl_handshake(void *ssl, bool server,
         return SSL_OK;
     }
 
-    if (ssl_do_wait(r))
-        return SSL_PENDING;
+    ssl_need_retry(r);
 
     ssl_err_code = r;
 
@@ -453,9 +449,7 @@ int ssl_write(void *ssl, const void *buf, int len)
         ret = mbedtls_ssl_write(ssl, (const unsigned char *)buf + done, len - done);
 
         if (ret < 0) {
-            if (ssl_do_wait(ret))
-                return done;
-
+            ssl_need_retry(ret);
             ssl_err_code = ret;
             return -1;
         }
@@ -473,8 +467,7 @@ int ssl_read(void *ssl, void *buf, int len)
     ssl_err_code = 0;
 
     if (ret < 0) {
-        if (ssl_do_wait(ret))
-            return SSL_PENDING;
+        ssl_need_retry(ret);
 
         if (ret == MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY)
             return 0;
