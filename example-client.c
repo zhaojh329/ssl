@@ -19,7 +19,7 @@
 
 #include "example.h"
 
-static void chat(void *ssl, int sock)
+static void chat(struct ssl *ssl, int sock)
 {
     char err_buf[128];
     char buf[4096];
@@ -74,7 +74,7 @@ static void *connect_ssl(int sock, const char *host)
 {
     struct ssl_context *ctx;
     char err_buf[128];
-    void *ssl;
+    struct ssl *ssl;
     int ret;
 
     printf("Starting SSL negotiation\n");
@@ -99,7 +99,7 @@ static void *connect_ssl(int sock, const char *host)
             break;
 
         if (ret == SSL_ERROR) {
-            fprintf(stderr, "ssl_connect: %s\n", ssl_last_error_string(err_buf, sizeof(err_buf)));
+            fprintf(stderr, "ssl_connect: %s\n", ssl_last_error_string(ssl, err_buf, sizeof(err_buf)));
             return NULL;
         }
 
@@ -152,7 +152,7 @@ int main(int argc, char **argv)
         .sin_family = AF_INET,
     };
     int sock;
-    void *ssl;
+    struct ssl *ssl;
 
     if (argc < 3) {
         fprintf(stderr, "Usage: %s host port\n", argv[0]);

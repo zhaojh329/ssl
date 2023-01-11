@@ -34,15 +34,19 @@ enum {
     SSL_WANT_WRITE = -3
 };
 
+struct ssl {
+    int err;
+};
+
 struct ssl_context;
 
-const char *ssl_last_error_string(char *buf, int len);
+const char *ssl_last_error_string(struct ssl *ssl, char *buf, int len);
 
 struct ssl_context *ssl_context_new(bool server);
 void ssl_context_free(struct ssl_context *ctx);
 
-void *ssl_session_new(struct ssl_context *ctx, int sock);
-void ssl_session_free(void *ssl);
+struct ssl *ssl_session_new(struct ssl_context *ctx, int sock);
+void ssl_session_free(struct ssl *ssl);
 
 int ssl_load_ca_crt_file(struct ssl_context *ctx, const char *file);
 int ssl_load_crt_file(struct ssl_context *ctx, const char *file);
@@ -52,12 +56,12 @@ int ssl_set_ciphers(struct ssl_context *ctx, const char *ciphers);
 
 int ssl_set_require_validation(struct ssl_context *ctx, bool require);
 
-void ssl_set_server_name(void *ssl, const char *name);
+void ssl_set_server_name(struct ssl *ssl, const char *name);
 
-int ssl_read(void *ssl, void *buf, int len);
-int ssl_write(void *ssl, const void *buf, int len);
+int ssl_read(struct ssl *ssl, void *buf, int len);
+int ssl_write(struct ssl *ssl, const void *buf, int len);
 
-int ssl_accept(void *ssl, void (*on_verify_error)(int error, const char *str, void *arg), void *arg);
-int ssl_connect(void *ssl, void (*on_verify_error)(int error, const char *str, void *arg), void *arg);
+int ssl_accept(struct ssl *ssl, void (*on_verify_error)(int error, const char *str, void *arg), void *arg);
+int ssl_connect(struct ssl *ssl, void (*on_verify_error)(int error, const char *str, void *arg), void *arg);
 
 #endif

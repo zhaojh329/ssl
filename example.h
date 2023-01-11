@@ -31,7 +31,7 @@ static void on_verify_error(int error, const char *str, void *arg)
     fprintf(stderr, "WARNING: SSL certificate error(%d): %s\n", error, str);
 }
 
-static int ssl_write_nonblock(void *ssl, int sock, void *data, int len)
+static int ssl_write_nonblock(struct ssl *ssl, int sock, void *data, int len)
 {
     char err_buf[128];
     fd_set fds;
@@ -40,7 +40,7 @@ static int ssl_write_nonblock(void *ssl, int sock, void *data, int len)
     while (true) {
         ret = ssl_write(ssl, data, len);
         if (ret == SSL_ERROR) {
-            fprintf(stderr, "ssl_write: %s\n", ssl_last_error_string(err_buf, sizeof(err_buf)));
+            fprintf(stderr, "ssl_write: %s\n", ssl_last_error_string(ssl, err_buf, sizeof(err_buf)));
             return -1;
         }
 
@@ -52,7 +52,7 @@ static int ssl_write_nonblock(void *ssl, int sock, void *data, int len)
     }
 }
 
-static int ssl_read_nonblock(void *ssl, int sock, void *data, int len, bool *closed)
+static int ssl_read_nonblock(struct ssl *ssl, int sock, void *data, int len, bool *closed)
 {
     char err_buf[128];
     fd_set fds;
@@ -63,7 +63,7 @@ static int ssl_read_nonblock(void *ssl, int sock, void *data, int len, bool *clo
     while (true) {
         ret = ssl_read(ssl, data, len);
         if (ret == SSL_ERROR) {
-            fprintf(stderr, "ssl_read: %s\n", ssl_last_error_string(err_buf, sizeof(err_buf)));
+            fprintf(stderr, "ssl_read: %s\n", ssl_last_error_string(ssl, err_buf, sizeof(err_buf)));
             return -1;
         }
 

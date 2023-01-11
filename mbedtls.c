@@ -78,28 +78,32 @@ struct ssl_context {
     int *ciphersuites;
 };
 
-static int ssl_err_code;
+struct mbedtls_ssl {
+    int err;
+    mbedtls_ssl_context ssl;
+    mbedtls_net_context net;
+};
 
-static int urandom_fd = -1;
-
-static bool urandom_init(void)
+static inline mbedtls_ssl_context *ssl_to_mbedtls_ssl(struct ssl *ssl)
 {
-    if (urandom_fd > -1)
-        return true;
-
-    urandom_fd = open("/dev/urandom", O_RDONLY);
-    if (urandom_fd < 0)
-        return false;
-
-    return true;
+    return &((struct mbedtls_ssl *)ssl)->ssl;
 }
 
-static int _urandom(void *ctx, unsigned char *out, size_t len)
+static int urandom(void *ctx, unsigned char *out, size_t len)
 {
-    if (read(urandom_fd, out, len) < 0)
+    int ret = 0;
+    int fd;
+
+    fd = open("/dev/urandom", O_RDONLY);
+    if (fd < 0)
         return MBEDTLS_ERR_ENTROPY_SOURCE_FAILED;
 
-    return 0;
+    if (read(fd, out, len) < 0)
+        ret = MBEDTLS_ERR_ENTROPY_SOURCE_FAILED;
+
+    close(fd);
+
+    return ret;
 }
 
 #define AES_GCM_CIPHERS(v)				\
@@ -142,9 +146,9 @@ static const int default_ciphersuites_client[] =
     0
 };
 
-const char *ssl_last_error_string(char *buf, int len)
+const char *ssl_last_error_string(struct ssl *ssl, char *buf, int len)
 {
-    mbedtls_strerror(ssl_err_code, buf, len);
+    mbedtls_strerror(ssl->err, buf, len);
     return buf;
 }
 
@@ -153,9 +157,6 @@ struct ssl_context *ssl_context_new(bool server)
     struct ssl_context *ctx;
     mbedtls_ssl_config *conf;
     int ep;
-
-    if (!urandom_init())
-        return NULL;
 
     ctx = calloc(1, sizeof(*ctx));
     if (!ctx)
@@ -178,7 +179,7 @@ struct ssl_context *ssl_context_new(bool server)
     ep = server ? MBEDTLS_SSL_IS_SERVER : MBEDTLS_SSL_IS_CLIENT;
 
     mbedtls_ssl_config_defaults(conf, ep, MBEDTLS_SSL_TRANSPORT_STREAM, MBEDTLS_SSL_PRESET_DEFAULT);
-    mbedtls_ssl_conf_rng(conf, _urandom, NULL);
+    mbedtls_ssl_conf_rng(conf, urandom, NULL);
 
     if (server) {
         mbedtls_ssl_conf_authmode(conf, MBEDTLS_SSL_VERIFY_NONE);
@@ -341,42 +342,40 @@ int ssl_set_require_validation(struct ssl_context *ctx, bool require)
     return 0;
 }
 
-void *ssl_session_new(struct ssl_context *ctx, int sock)
+struct ssl *ssl_session_new(struct ssl_context *ctx, int sock)
 {
-    mbedtls_ssl_context *ssl;
-    mbedtls_net_context *net;
+    struct mbedtls_ssl *ssl;
 
-    ssl = calloc(1, sizeof(mbedtls_ssl_context) + sizeof(mbedtls_net_context));
+    ssl = calloc(1, sizeof(struct mbedtls_ssl));
     if (!ssl)
         return NULL;
 
-    mbedtls_ssl_init(ssl);
+    mbedtls_ssl_init(&ssl->ssl);
 
-    if (mbedtls_ssl_setup(ssl, &ctx->conf)) {
+    if (mbedtls_ssl_setup(&ssl->ssl, &ctx->conf)) {
         free(ssl);
         return NULL;
     }
 
-    net = (mbedtls_net_context *)(ssl + 1);
-    net->fd = sock;
+    ssl->net.fd = sock;
 
-    mbedtls_ssl_set_bio(ssl, net, mbedtls_net_send, mbedtls_net_recv, NULL);
+    mbedtls_ssl_set_bio(&ssl->ssl, &ssl->net, mbedtls_net_send, mbedtls_net_recv, NULL);
 
-    return ssl;
+    return (struct ssl *)ssl;
 }
 
-void ssl_session_free(void *ssl)
+void ssl_session_free(struct ssl *ssl)
 {
     if (!ssl)
         return;
 
-    mbedtls_ssl_free(ssl);
+    mbedtls_ssl_free(ssl_to_mbedtls_ssl(ssl));
     free(ssl);
 }
 
-void ssl_set_server_name(void *ssl, const char *name)
+void ssl_set_server_name(struct ssl *ssl, const char *name)
 {
-    mbedtls_ssl_set_hostname(ssl, name);
+    mbedtls_ssl_set_hostname(ssl_to_mbedtls_ssl(ssl), name);
 }
 
 #define ssl_need_retry(ret)                         \
@@ -387,7 +386,7 @@ void ssl_set_server_name(void *ssl, const char *name)
             return SSL_WANT_WRITE;                  \
     } while (0)
 
-static void ssl_verify_cert(void *ssl, void (*on_verify_error)(int error, const char *str, void *arg), void *arg)
+static void ssl_verify_cert(mbedtls_ssl_context *ssl, void (*on_verify_error)(int error, const char *str, void *arg), void *arg)
 {
     const char *msg = NULL;
     int r;
@@ -408,49 +407,49 @@ static void ssl_verify_cert(void *ssl, void (*on_verify_error)(int error, const 
         on_verify_error(r, msg, arg);
 }
 
-static int ssl_handshake(void *ssl, bool server,
+static int ssl_handshake(struct ssl *ssl, bool server,
         void (*on_verify_error)(int error, const char *str, void *arg), void *arg)
 {
     int r;
 
-    ssl_err_code = 0;
+    ssl->err = 0;
 
-    r = mbedtls_ssl_handshake(ssl);
+    r = mbedtls_ssl_handshake(ssl_to_mbedtls_ssl(ssl));
     if (r == 0) {
-        ssl_verify_cert(ssl, on_verify_error, arg);
+        ssl_verify_cert(ssl_to_mbedtls_ssl(ssl), on_verify_error, arg);
         return SSL_OK;
     }
 
     ssl_need_retry(r);
 
-    ssl_err_code = r;
+    ssl->err = r;
 
     return SSL_ERROR;
 }
 
-int ssl_accept(void *ssl, void (*on_verify_error)(int error, const char *str, void *arg), void *arg)
+int ssl_accept(struct ssl *ssl, void (*on_verify_error)(int error, const char *str, void *arg), void *arg)
 {
     return ssl_handshake(ssl, true, on_verify_error, arg);
 }
 
-int ssl_connect(void *ssl, void (*on_verify_error)(int error, const char *str, void *arg), void *arg)
+int ssl_connect(struct ssl *ssl, void (*on_verify_error)(int error, const char *str, void *arg), void *arg)
 {
     return ssl_handshake(ssl, false, on_verify_error, arg);
 }
 
-int ssl_write(void *ssl, const void *buf, int len)
+int ssl_write(struct ssl *ssl, const void *buf, int len)
 {
     int done = 0;
     int ret = 0;
 
-    ssl_err_code = 0;
+    ssl->err = 0;
 
     while (done != len) {
-        ret = mbedtls_ssl_write(ssl, (const unsigned char *)buf + done, len - done);
+        ret = mbedtls_ssl_write(ssl_to_mbedtls_ssl(ssl), (const unsigned char *)buf + done, len - done);
 
         if (ret < 0) {
             ssl_need_retry(ret);
-            ssl_err_code = ret;
+            ssl->err = ret;
             return -1;
         }
 
@@ -460,11 +459,11 @@ int ssl_write(void *ssl, const void *buf, int len)
     return done;
 }
 
-int ssl_read(void *ssl, void *buf, int len)
+int ssl_read(struct ssl *ssl, void *buf, int len)
 {
-    int ret = mbedtls_ssl_read(ssl, (unsigned char *)buf, len);
+    int ret = mbedtls_ssl_read(ssl_to_mbedtls_ssl(ssl), (unsigned char *)buf, len);
 
-    ssl_err_code = 0;
+    ssl->err = 0;
 
     if (ret < 0) {
         ssl_need_retry(ret);
@@ -472,7 +471,7 @@ int ssl_read(void *ssl, void *buf, int len)
         if (ret == MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY)
             return 0;
 
-        ssl_err_code = ret;
+        ssl->err = ret;
         return SSL_ERROR;
     }
 

@@ -21,7 +21,7 @@
 
 static struct ssl_context *ctx;
 
-static void chat(void *ssl, int sock)
+static void chat(struct ssl *ssl, int sock)
 {
     char err_buf[128];
     char buf[4096];
@@ -75,7 +75,7 @@ static void chat(void *ssl, int sock)
 static void *ssl_negotiation(int sock)
 {
     char err_buf[128];
-    void *ssl;
+    struct ssl *ssl;
     int ret;
     
     ssl = ssl_session_new(ctx, sock);
@@ -92,7 +92,7 @@ static void *ssl_negotiation(int sock)
             break;
 
         if (ret == SSL_ERROR) {
-            fprintf(stderr, "ssl_connect: %s\n", ssl_last_error_string(err_buf, sizeof(err_buf)));
+            fprintf(stderr, "ssl_connect: %s\n", ssl_last_error_string(ssl, err_buf, sizeof(err_buf)));
             return NULL;
         }
 
@@ -147,7 +147,7 @@ int main(int argc, char **argv)
     printf("Wait connect...\n");
 
     while (true) {
-        void *ssl;
+        struct ssl *ssl;
         int cli;
 
         cli = accept4(sock, NULL, NULL, SOCK_NONBLOCK);

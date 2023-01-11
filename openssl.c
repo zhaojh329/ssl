@@ -130,29 +130,37 @@
 struct ssl_context {
 };
 
-static int ssl_err_code;
+struct openssl_ssl {
+    int err;
+    SSL *ssl;
+};
 
-const char *ssl_last_error_string(char *buf, int len)
+static inline SSL *ssl_to_openssl(struct ssl *ssl)
+{
+    return ((struct openssl_ssl *)ssl)->ssl;
+}
+
+const char *ssl_last_error_string(struct ssl *ssl, char *buf, int len)
 {
     const char *file, *data;
     int line, flags;
 
-    if (ssl_err_code == SSL_ERROR_SSL) {
+    if (ssl->err == SSL_ERROR_SSL) {
         int used;
 #if OPENSSL_VERSION_MAJOR < 3
-        ssl_err_code = ERR_peek_error_line_data(&file, &line, &data, &flags);
+        ssl->err = ERR_peek_error_line_data(&file, &line, &data, &flags);
 #else
-        ssl_err_code = ERR_peek_error_all(&file, &line, NULL, &data, &flags);
+        ssl->err = ERR_peek_error_all(&file, &line, NULL, &data, &flags);
 #endif
-        ERR_error_string_n(ssl_err_code, buf, len);
+        ERR_error_string_n(ssl->err, buf, len);
 
         used = strlen(buf);
 
         snprintf(buf + used, len - used, ":%s:%d:%s", file, line, (flags & ERR_TXT_STRING) ? data : "");
-    } else if (ssl_err_code == SSL_ERROR_SYSCALL) {
+    } else if (ssl->err == SSL_ERROR_SYSCALL) {
         snprintf(buf, len, "%s", strerror(errno));
     } else {
-        ERR_error_string_n(ssl_err_code, buf, len);
+        ERR_error_string_n(ssl->err, buf, len);
     }
 
     return buf;
@@ -280,35 +288,43 @@ int ssl_set_require_validation(struct ssl_context *ctx, bool require)
     return 0;
 }
 
-void *ssl_session_new(struct ssl_context *ctx, int sock)
+struct ssl *ssl_session_new(struct ssl_context *ctx, int sock)
 {
-    void *ssl = SSL_new((void *)ctx);
-
+    struct openssl_ssl *ssl = calloc(1, sizeof(struct openssl_ssl));
     if (!ssl)
         return NULL;
 
-    SSL_set_fd(ssl, sock);
+    ssl->ssl = SSL_new((void *)ctx);
+    if (!ssl->ssl)
+        goto err;
 
-    SSL_set_mode(ssl, SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER | SSL_MODE_ENABLE_PARTIAL_WRITE);
+    SSL_set_fd(ssl->ssl, sock);
 
-    return ssl;
+    SSL_set_mode(ssl->ssl, SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER | SSL_MODE_ENABLE_PARTIAL_WRITE);
+
+    return (struct ssl *)ssl;
+
+err:
+    free(ssl);
+    return NULL;
 }
 
-void ssl_session_free(void *ssl)
+void ssl_session_free(struct ssl *ssl)
 {
     if (!ssl)
         return;
 
-    SSL_shutdown(ssl);
-    SSL_free(ssl);
+    SSL_shutdown(ssl_to_openssl(ssl));
+    SSL_free(ssl_to_openssl(ssl));
+    free(ssl);
 }
 
-void ssl_set_server_name(void *ssl, const char *name)
+void ssl_set_server_name(struct ssl *ssl, const char *name)
 {
-    SSL_set_tlsext_host_name(ssl, name);
+    SSL_set_tlsext_host_name(ssl_to_openssl(ssl), name);
 }
 
-static void ssl_verify_cert(void *ssl, void (*on_verify_error)(int error, const char *str, void *arg), void *arg)
+static void ssl_verify_cert(SSL *ssl, void (*on_verify_error)(int error, const char *str, void *arg), void *arg)
 {
     int res;
 
@@ -318,7 +334,7 @@ static void ssl_verify_cert(void *ssl, void (*on_verify_error)(int error, const 
 }
 
 #ifdef WOLFSSL_SSL_H
-static bool handle_wolfssl_asn_error(void *ssl, int r,
+static bool handle_wolfssl_asn_error(SSL *ssl, int r,
                 void (*on_verify_error)(int error, const char *str, void *arg), void *arg)
 {
     switch (r) {
@@ -379,82 +395,85 @@ static bool handle_wolfssl_asn_error(void *ssl, int r,
             return SSL_WANT_WRITE;              \
     } while (0)
 
-static int ssl_handshake(void *ssl, bool server,
+static int ssl_handshake(struct ssl *ssl, bool server,
     void (*on_verify_error)(int error, const char *str, void *arg), void *arg)
 {
+    SSL *ossl = ssl_to_openssl(ssl);
     int r;
 
     ERR_clear_error();
 
-    ssl_err_code = 0;
+    ssl->err = 0;
 
     if (server)
-        r = SSL_accept(ssl);
+        r = SSL_accept(ossl);
     else
-        r = SSL_connect(ssl);
+        r = SSL_connect(ossl);
 
     if (r == 1) {
-        ssl_verify_cert(ssl, on_verify_error, arg);
+        ssl_verify_cert(ossl, on_verify_error, arg);
         return SSL_OK;
     }
 
-    r = SSL_get_error(ssl, r);
+    r = SSL_get_error(ossl, r);
 
     ssl_need_retry(r);
 
 #ifdef WOLFSSL_SSL_H
-    if (handle_wolfssl_asn_error(ssl, r, on_verify_error, arg))
+    if (handle_wolfssl_asn_error(ossl, r, on_verify_error, arg))
         return SSL_OK;
 #endif
 
-    ssl_err_code = r;
+    ssl->err = r;
 
     return SSL_ERROR;
 }
 
-int ssl_accept(void *ssl, void (*on_verify_error)(int error, const char *str, void *arg), void *arg)
+int ssl_accept(struct ssl *ssl, void (*on_verify_error)(int error, const char *str, void *arg), void *arg)
 {
     return ssl_handshake(ssl, true, on_verify_error, arg);
 }
 
-int ssl_connect(void *ssl, void (*on_verify_error)(int error, const char *str, void *arg), void *arg)
+int ssl_connect(struct ssl *ssl, void (*on_verify_error)(int error, const char *str, void *arg), void *arg)
 {
     return ssl_handshake(ssl, false, on_verify_error, arg);
 }
 
-int ssl_write(void *ssl, const void *buf, int len)
+int ssl_write(struct ssl *ssl, const void *buf, int len)
 {
+    SSL *ossl = ssl_to_openssl(ssl);
     int ret;
 
     ERR_clear_error();
 
-    ssl_err_code = 0;
+    ssl->err = 0;
 
-    ret = SSL_write(ssl, buf, len);
+    ret = SSL_write(ossl, buf, len);
 
     if (ret < 0) {
-        ret = SSL_get_error(ssl, ret);
+        ret = SSL_get_error(ossl, ret);
         ssl_need_retry(ret);
-        ssl_err_code = ret;
+        ssl->err = ret;
         return SSL_ERROR;
     }
 
     return ret;
 }
 
-int ssl_read(void *ssl, void *buf, int len)
+int ssl_read(struct ssl *ssl, void *buf, int len)
 {
+    SSL *ossl = ssl_to_openssl(ssl);
     int ret;
 
     ERR_clear_error();
 
-    ssl_err_code = 0;
+    ssl->err = 0;
 
-    ret = SSL_read(ssl, buf, len);
+    ret = SSL_read(ossl, buf, len);
     if (ret < 0) {
-        ret = SSL_get_error(ssl, ret);
+        ret = SSL_get_error(ossl, ret);
         ssl_need_retry(ret);
-        ssl_err_code = ret;
+        ssl->err = ret;
         return SSL_ERROR;
     }
 
