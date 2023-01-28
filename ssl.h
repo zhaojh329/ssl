@@ -48,8 +48,8 @@ void ssl_context_free(struct ssl_context *ctx);
 struct ssl *ssl_session_new(struct ssl_context *ctx, int sock);
 void ssl_session_free(struct ssl *ssl);
 
-int ssl_load_ca_crt_file(struct ssl_context *ctx, const char *file);
-int ssl_load_crt_file(struct ssl_context *ctx, const char *file);
+int ssl_load_ca_cert_file(struct ssl_context *ctx, const char *file);
+int ssl_load_cert_file(struct ssl_context *ctx, const char *file);
 int ssl_load_key_file(struct ssl_context *ctx, const char *file);
 
 int ssl_set_ciphers(struct ssl_context *ctx, const char *ciphers);

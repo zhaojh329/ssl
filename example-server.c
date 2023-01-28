@@ -134,8 +134,8 @@ int main(int argc, char **argv)
 
     ctx = ssl_context_new(true);
 
-    if (ssl_load_crt_file(ctx, "example.crt")) {
-        fprintf(stderr, "ssl_load_crt_file fail\n");
+    if (ssl_load_cert_file(ctx, "example.crt")) {
+        fprintf(stderr, "ssl_load_cert_file fail\n");
         return -1;
     }
 

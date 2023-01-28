@@ -227,7 +227,7 @@ void ssl_context_free(struct ssl_context *ctx)
     SSL_CTX_free((void *)ctx);
 }
 
-int ssl_load_ca_crt_file(struct ssl_context *ctx, const char *file)
+int ssl_load_ca_cert_file(struct ssl_context *ctx, const char *file)
 {
     int ret;
 
@@ -238,7 +238,7 @@ int ssl_load_ca_crt_file(struct ssl_context *ctx, const char *file)
     return 0;
 }
 
-int ssl_load_crt_file(struct ssl_context *ctx, const char *file)
+int ssl_load_cert_file(struct ssl_context *ctx, const char *file)
 {
     int ret;
 
