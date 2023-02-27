@@ -14,10 +14,10 @@ endif()
 
 find_package(PkgConfig QUIET)
 
-find_package(OpenSSL)
+pkg_check_modules(OPENSSL openssl)
 
 if (NOT OPENSSL_FOUND)
-    pkg_check_modules(OPENSSL openssl)
+    find_package(OpenSSL)
 endif()
 
 find_package(WolfSSL)
