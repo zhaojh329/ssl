@@ -225,7 +225,7 @@ static void ssl_update_own_cert(struct ssl_context *ctx)
     mbedtls_ssl_conf_own_cert(&ctx->conf, &ctx->cert, &ctx->key);
 }
 
-int ssl_load_ca_crt_file(struct ssl_context *ctx, const char *file)
+int ssl_load_ca_cert_file(struct ssl_context *ctx, const char *file)
 {
     int ret;
 
