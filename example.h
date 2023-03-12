@@ -1,3 +1,8 @@
+/* SPDX-License-Identifier: MIT */
+/*
+ * Author: Jianhui Zhao <zhaojh329@gmail.com>
+ */
+
 #ifndef __EXAMPLE_H
 #define __EXAMPLE_H
 

@@ -1,4 +1,7 @@
+/* SPDX-License-Identifier: MIT */
 /*
+ * Author: Jianhui Zhao <zhaojh329@gmail.com>
+ *
  * openssl: gcc example-client.c openssl.c -lssl -lcrypto -o client
  * wolfssl: gcc example-client.c openssl.c -lwolfssl -DHAVE_WOLFSSL -o client
  * mbedtls: gcc example-client.c mbedtls.c -lmbedtls -lmbedcrypto -lmbedx509 -o client
