@@ -160,6 +160,9 @@ struct ssl_context *ssl_context_new(bool server)
         return NULL;
 
     SSL_CTX_set_verify(c, SSL_VERIFY_NONE, NULL);
+#if defined(SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER)
+    SSL_CTX_set_mode(c, SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER);
+#endif
 
     SSL_CTX_set_options(c, SSL_OP_NO_COMPRESSION | SSL_OP_SINGLE_ECDH_USE | SSL_OP_CIPHER_SERVER_PREFERENCE);
 #if defined(SSL_CTX_set_ecdh_auto) && OPENSSL_VERSION_NUMBER < 0x10100000L
