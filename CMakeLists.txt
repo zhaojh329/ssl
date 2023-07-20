@@ -78,7 +78,7 @@ if(SSL_SUPPORT)
 
     add_library(xssl STATIC ${SSL_SRC})
     target_compile_definitions(xssl PRIVATE ${SSL_DEFINE})
-    target_compile_options(xssl PRIVATE -O -Wall -Werror --std=gnu99 -fPIC)
+    target_compile_options(xssl PRIVATE -O -Wall --std=gnu99 -fPIC)
     target_include_directories(xssl PRIVATE ${SSL_INC})
     target_link_libraries(xssl PRIVATE ${SSL_LIBS})
 
