@@ -128,6 +128,10 @@ struct ssl_context *ssl_context_new(bool server)
     if (!ctx)
         return NULL;
 
+#if defined(MBEDTLS_PSA_CRYPTO_CLIENT)
+    psa_crypto_init();
+#endif
+
     ctx->server = server;
     mbedtls_pk_init(&ctx->key);
     mbedtls_x509_crt_init(&ctx->cert);
