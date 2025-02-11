@@ -1,10 +1,13 @@
 # Usage
 
+Add ssl subdirectory in your repo.
+
 ```
-cmake_minimum_required(VERSION 3.0)
+git submodule add https://github.com/zhaojh329/ssl.git
+```
 
-project(xx C)
-
+Add these code in `the CMakeLists.txt` of your repo.
+```
 add_subdirectory(ssl)
 
 if(SSL_SUPPORT)
@@ -12,6 +15,7 @@ if(SSL_SUPPORT)
 endif()
 ```
 
+Include `ssl.h` in your source code.
 ```
  #ifdef SSL_SUPPORT
  #include "ssl/ssl.h"
