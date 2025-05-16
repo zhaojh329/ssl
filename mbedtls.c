@@ -327,6 +327,11 @@ int ssl_set_require_validation(struct ssl_context *ctx, bool require)
     if (!require)
         mode = MBEDTLS_SSL_VERIFY_NONE;
 
+    /* force TLS 1.2 when not requiring validation for now */
+    if (!require && !ctx->server)
+        mbedtls_ssl_conf_max_version(&ctx->conf, MBEDTLS_SSL_MAJOR_VERSION_3,
+                                    MBEDTLS_SSL_MINOR_VERSION_3);
+
     mbedtls_ssl_conf_authmode(&ctx->conf, mode);
 
     return 0;
