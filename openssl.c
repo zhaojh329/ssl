@@ -416,7 +416,7 @@ int ssl_write(struct ssl *ssl, const void *buf, int len)
 
     ret = SSL_write(ossl, buf, len);
 
-    if (ret < 0) {
+    if (ret <= 0) {
         ret = SSL_get_error(ossl, ret);
         ssl_need_retry(ret);
         ssl->err = ret;
@@ -436,9 +436,13 @@ int ssl_read(struct ssl *ssl, void *buf, int len)
     ssl->err = 0;
 
     ret = SSL_read(ossl, buf, len);
-    if (ret < 0) {
+    if (ret <= 0) {
         ret = SSL_get_error(ossl, ret);
         ssl_need_retry(ret);
+
+        if (ret == SSL_ERROR_ZERO_RETURN)
+            return 0;
+
         ssl->err = ret;
         return SSL_ERROR;
     }
