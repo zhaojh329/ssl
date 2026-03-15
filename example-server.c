@@ -66,7 +66,7 @@ static void chat(struct ssl *ssl, int sock)
                 fprintf(stderr, "Connection closed by peer\n");
                 ssl_session_free(ssl);
                 close(sock);
-                return; 
+                return;
             }
 
             if (ret > 0)
@@ -80,7 +80,7 @@ static void *ssl_negotiation(int sock)
     char err_buf[128];
     struct ssl *ssl;
     int ret;
-    
+
     ssl = ssl_session_new(ctx, sock);
     if (!ssl) {
         fprintf(stderr, "ssl_session_new fail\n");
@@ -164,7 +164,7 @@ int main(int argc, char **argv)
         ssl = ssl_negotiation(cli);
         if (!ssl)
             return -1;
-        
+
         chat(ssl, cli);
     }
 

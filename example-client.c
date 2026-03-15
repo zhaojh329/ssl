@@ -64,7 +64,7 @@ static void chat(struct ssl *ssl, int sock)
                 fprintf(stderr, "Connection closed by peer\n");
                 ssl_session_free(ssl);
                 close(sock);
-                return; 
+                return;
             }
 
             if (ret > 0)
@@ -134,7 +134,7 @@ static bool wait_connect(int sock)
 
     if (!FD_ISSET(sock, &wfds))
         return false;
-    
+
     ret = getsockopt(sock, SOL_SOCKET, SO_ERROR, &err, &len);
     if (ret < 0) {
         perror("getsockopt");
@@ -192,7 +192,7 @@ int main(int argc, char **argv)
     ssl = connect_ssl(sock, argv[2]);
     if (!ssl)
         return -1;
-    
+
     chat(ssl, sock);
 
     return 0;
