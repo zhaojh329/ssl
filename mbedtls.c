@@ -387,12 +387,13 @@ static void ssl_verify_cert(mbedtls_ssl_context *ssl, void (*on_verify_error)(in
     int r;
 
     r = mbedtls_ssl_get_verify_result(ssl);
-    r &= ~MBEDTLS_X509_BADCERT_CN_MISMATCH;
 
     if (r & MBEDTLS_X509_BADCERT_EXPIRED)
         msg = "certificate has expired";
     else if (r & MBEDTLS_X509_BADCERT_REVOKED)
         msg = "certificate has been revoked";
+    else if (r & MBEDTLS_X509_BADCERT_CN_MISMATCH)
+        msg = "certificate common name does not match host name";
     else if (r & MBEDTLS_X509_BADCERT_NOT_TRUSTED)
         msg = "certificate is self-signed or not signed by a trusted CA";
     else
