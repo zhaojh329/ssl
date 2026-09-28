@@ -170,7 +170,11 @@ struct ssl_context *ssl_context_new(bool server)
     if (server) {
         mbedtls_ssl_conf_authmode(conf, MBEDTLS_SSL_VERIFY_NONE);
         mbedtls_ssl_conf_ciphersuites(conf, default_ciphersuites_server);
+#if MBEDTLS_VERSION_NUMBER >= 0x03020000L
+        mbedtls_ssl_conf_min_tls_version(conf, MBEDTLS_SSL_VERSION_TLS1_2);
+#else
         mbedtls_ssl_conf_min_version(conf, MBEDTLS_SSL_MAJOR_VERSION_3, MBEDTLS_SSL_MINOR_VERSION_3);
+#endif
     } else {
         mbedtls_ssl_conf_authmode(conf, MBEDTLS_SSL_VERIFY_OPTIONAL);
         mbedtls_ssl_conf_ciphersuites(conf, default_ciphersuites_client);
@@ -328,9 +332,14 @@ int ssl_set_require_validation(struct ssl_context *ctx, bool require)
         mode = MBEDTLS_SSL_VERIFY_NONE;
 
     /* force TLS 1.2 when not requiring validation for now */
-    if (!require && !ctx->server)
+    if (!require && !ctx->server) {
+#if MBEDTLS_VERSION_NUMBER >= 0x03020000L
+        mbedtls_ssl_conf_max_tls_version(&ctx->conf, MBEDTLS_SSL_VERSION_TLS1_2);
+#else
         mbedtls_ssl_conf_max_version(&ctx->conf, MBEDTLS_SSL_MAJOR_VERSION_3,
                                     MBEDTLS_SSL_MINOR_VERSION_3);
+#endif
+    }
 
     mbedtls_ssl_conf_authmode(&ctx->conf, mode);
 
