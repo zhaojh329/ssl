@@ -3,6 +3,7 @@
  * Author: Jianhui Zhao <zhaojh329@gmail.com>
  */
 
+#include <arpa/inet.h>
 #include <string.h>
 
 #include "ssl.h"
@@ -110,6 +111,17 @@ const char *ssl_last_error_string(struct ssl *ssl, char *buf, int len)
 
     if (ssl->err == SSL_ERROR_SSL) {
         int used;
+
+#ifndef WOLFSSL_SSL_H
+        if (ERR_GET_REASON(ERR_peek_error()) == SSL_R_CERTIFICATE_VERIFY_FAILED) {
+            long verify_error = SSL_get_verify_result(ssl_to_openssl(ssl));
+
+            snprintf(buf, len, "certificate verify failed (%ld): %s",
+                     verify_error, X509_verify_cert_error_string(verify_error));
+            return buf;
+        }
+#endif
+
 #if OPENSSL_VERSION_MAJOR < 3
         ssl->err = ERR_peek_error_line_data(&file, &line, &data, &flags);
 #else
@@ -260,6 +272,7 @@ struct ssl *ssl_session_new(struct ssl_context *ctx, int sock)
     if (!ssl)
         return NULL;
 
+    /* SSL_new() copies the context's verification mode into the session. */
     ssl->ssl = SSL_new((void *)ctx);
     if (!ssl->ssl)
         goto err;
@@ -287,7 +300,41 @@ void ssl_session_free(struct ssl *ssl)
 
 void ssl_set_server_name(struct ssl *ssl, const char *name)
 {
-    SSL_set_tlsext_host_name(ssl_to_openssl(ssl), name);
+    SSL *ossl = ssl_to_openssl(ssl);
+    unsigned char addr[16];
+    bool is_ip = inet_pton(AF_INET, name, addr) == 1 ||
+                 inet_pton(AF_INET6, name, addr) == 1;
+
+    if (!is_ip)
+        SSL_set_tlsext_host_name(ossl, name);
+
+#ifdef WOLFSSL_SSL_H
+#if LIBWOLFSSL_VERSION_HEX >= 0x05009001
+    /* Use the inherited mode: wolfSSL 5.9.1 can enforce IP checks even with SSL_VERIFY_NONE. */
+    if (is_ip && SSL_get_verify_mode(ossl) != SSL_VERIFY_NONE)
+        wolfSSL_check_ip_address(ossl, name);
+    else
+#endif
+        wolfSSL_check_domain_name(ossl, name);
+#elif OPENSSL_VERSION_NUMBER >= 0x30000000L
+    SSL_set_hostflags(ossl, X509_CHECK_FLAG_NO_PARTIAL_WILDCARDS);
+    SSL_set1_host(ossl, name);
+#elif OPENSSL_VERSION_NUMBER >= 0x10100000L
+    SSL_set_hostflags(ossl, X509_CHECK_FLAG_NO_PARTIAL_WILDCARDS);
+
+    if (is_ip)
+        X509_VERIFY_PARAM_set1_ip_asc(SSL_get0_param(ossl), name);
+    else
+        SSL_set1_host(ossl, name);
+#else
+    X509_VERIFY_PARAM_set_hostflags(SSL_get0_param(ossl),
+                                   X509_CHECK_FLAG_NO_PARTIAL_WILDCARDS);
+
+    if (is_ip)
+        X509_VERIFY_PARAM_set1_ip_asc(SSL_get0_param(ossl), name);
+    else
+        X509_VERIFY_PARAM_set1_host(SSL_get0_param(ossl), name, 0);
+#endif
 }
 
 static void ssl_verify_cert(SSL *ssl, void (*on_verify_error)(int error, const char *str, void *arg), void *arg)

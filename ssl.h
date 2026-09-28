@@ -36,8 +36,10 @@ int ssl_load_key_file(struct ssl_context *ctx, const char *file);
 
 int ssl_set_ciphers(struct ssl_context *ctx, const char *ciphers);
 
+/* Configure verification before ssl_session_new(); existing sessions may not inherit changes. */
 int ssl_set_require_validation(struct ssl_context *ctx, bool require);
 
+/* Call after ssl_session_new() and before the handshake, with verification already configured. */
 void ssl_set_server_name(struct ssl *ssl, const char *name);
 
 int ssl_read(struct ssl *ssl, void *buf, int len);
