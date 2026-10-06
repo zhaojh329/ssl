@@ -2,14 +2,21 @@ find_path(MBEDTLS_INCLUDE_DIR mbedtls/ssl.h)
 
 find_library(MBEDTLS_LIBRARY mbedtls)
 find_library(MBEDX509_LIBRARY mbedx509)
-find_library(MBEDCRYPTO_LIBRARY mbedcrypto)
+# Mbed TLS 4.x moved the crypto library to TF-PSA-Crypto (libtfpsacrypto)
+find_library(MBEDCRYPTO_LIBRARY NAMES tfpsacrypto mbedcrypto NAMES_PER_DIR)
 
 if(MBEDTLS_INCLUDE_DIR)
-  file(STRINGS "${MBEDTLS_INCLUDE_DIR}/mbedtls/version.h"
+  # The version macros live in build_info.h since Mbed TLS 3.0
+  if(EXISTS "${MBEDTLS_INCLUDE_DIR}/mbedtls/build_info.h")
+    set(MBEDTLS_VERSION_FILE "${MBEDTLS_INCLUDE_DIR}/mbedtls/build_info.h")
+  else()
+    set(MBEDTLS_VERSION_FILE "${MBEDTLS_INCLUDE_DIR}/mbedtls/version.h")
+  endif()
+  file(STRINGS "${MBEDTLS_VERSION_FILE}"
       MBEDTLS_VERSION_MAJOR REGEX "^#define[ \t]+MBEDTLS_VERSION_MAJOR[ \t]+[0-9]+")
-  file(STRINGS "${MBEDTLS_INCLUDE_DIR}/mbedtls/version.h"
+  file(STRINGS "${MBEDTLS_VERSION_FILE}"
       MBEDTLS_VERSION_MINOR REGEX "^#define[ \t]+MBEDTLS_VERSION_MINOR[ \t]+[0-9]+")
-  file(STRINGS "${MBEDTLS_INCLUDE_DIR}/mbedtls/version.h"
+  file(STRINGS "${MBEDTLS_VERSION_FILE}"
       MBEDTLS_VERSION_PATCH REGEX "^#define[ \t]+MBEDTLS_VERSION_PATCH[ \t]+[0-9]+")
   string(REGEX REPLACE "[^0-9]+" "" MBEDTLS_VERSION_MAJOR "${MBEDTLS_VERSION_MAJOR}")
   string(REGEX REPLACE "[^0-9]+" "" MBEDTLS_VERSION_MINOR "${MBEDTLS_VERSION_MINOR}")
@@ -18,6 +25,7 @@ if(MBEDTLS_INCLUDE_DIR)
   unset(MBEDTLS_VERSION_MINOR)
   unset(MBEDTLS_VERSION_MAJOR)
   unset(MBEDTLS_VERSION_PATCH)
+  unset(MBEDTLS_VERSION_FILE)
 endif()
 
 set(MBEDTLS_LIBRARIES "${MBEDTLS_LIBRARY}" "${MBEDX509_LIBRARY}" "${MBEDCRYPTO_LIBRARY}")

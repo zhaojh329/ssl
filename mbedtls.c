@@ -13,10 +13,12 @@
 
 #include <mbedtls/ssl.h>
 #include <mbedtls/x509.h>
-#include <mbedtls/rsa.h>
 #include <mbedtls/error.h>
 #include <mbedtls/version.h>
+
+#if MBEDTLS_VERSION_MAJOR < 4
 #include <mbedtls/entropy.h>
+#endif
 
 #if MBEDTLS_VERSION_NUMBER < 0x02040000L
 #include <mbedtls/net.h>
@@ -51,6 +53,7 @@ static inline mbedtls_ssl_context *ssl_to_mbedtls_ssl(struct ssl *ssl)
     return &((struct mbedtls_ssl *)ssl)->ssl;
 }
 
+#if MBEDTLS_VERSION_MAJOR < 4
 static int urandom(void *ctx, unsigned char *out, size_t len)
 {
     int ret = 0;
@@ -67,6 +70,7 @@ static int urandom(void *ctx, unsigned char *out, size_t len)
 
     return ret;
 }
+#endif
 
 #define AES_GCM_CIPHERS(v)				\
     MBEDTLS_TLS_##v##_WITH_AES_128_GCM_SHA256,	\
@@ -95,7 +99,9 @@ static const int default_ciphersuites_server[] =
     MBEDTLS_TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
     AES_GCM_CIPHERS(ECDHE_RSA),
     AES_CBC_CIPHERS(ECDHE_RSA),
+#if MBEDTLS_VERSION_MAJOR < 4
     AES_CIPHERS(RSA),
+#endif
     0
 };
 
@@ -113,15 +119,21 @@ static const int default_ciphersuites_client[] =
     AES_GCM_CIPHERS(ECDHE_ECDSA),
     MBEDTLS_TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
     AES_GCM_CIPHERS(ECDHE_RSA),
+#if MBEDTLS_VERSION_MAJOR < 4
     MBEDTLS_TLS_DHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
     AES_GCM_CIPHERS(DHE_RSA),
+#endif
     AES_CBC_CIPHERS(ECDHE_ECDSA),
     AES_CBC_CIPHERS(ECDHE_RSA),
+#if MBEDTLS_VERSION_MAJOR < 4
     AES_CBC_CIPHERS(DHE_RSA),
+#endif
 #ifdef MBEDTLS_TLS_DHE_RSA_WITH_3DES_EDE_CBC_SHA
     MBEDTLS_TLS_DHE_RSA_WITH_3DES_EDE_CBC_SHA,
 #endif
+#if MBEDTLS_VERSION_MAJOR < 4
     AES_CIPHERS(RSA),
+#endif
 #ifdef MBEDTLS_TLS_RSA_WITH_3DES_EDE_CBC_SHA
     MBEDTLS_TLS_RSA_WITH_3DES_EDE_CBC_SHA,
 #endif
@@ -144,8 +156,11 @@ struct ssl_context *ssl_context_new(bool server)
     if (!ctx)
         return NULL;
 
-#if defined(MBEDTLS_PSA_CRYPTO_CLIENT)
-    psa_crypto_init();
+#if MBEDTLS_VERSION_MAJOR >= 4 || defined(MBEDTLS_PSA_CRYPTO_CLIENT)
+    if (psa_crypto_init() != PSA_SUCCESS) {
+        free(ctx);
+        return NULL;
+    }
 #endif
 
     ctx->server = server;
@@ -165,7 +180,9 @@ struct ssl_context *ssl_context_new(bool server)
     ep = server ? MBEDTLS_SSL_IS_SERVER : MBEDTLS_SSL_IS_CLIENT;
 
     mbedtls_ssl_config_defaults(conf, ep, MBEDTLS_SSL_TRANSPORT_STREAM, MBEDTLS_SSL_PRESET_DEFAULT);
+#if MBEDTLS_VERSION_MAJOR < 4
     mbedtls_ssl_conf_rng(conf, urandom, NULL);
+#endif
 
     if (server) {
         mbedtls_ssl_conf_authmode(conf, MBEDTLS_SSL_VERIFY_NONE);
@@ -209,7 +226,7 @@ static void ssl_update_own_cert(struct ssl_context *ctx)
     if (!ctx->cert.version)
         return;
 
-    if (mbedtls_pk_get_type(&ctx->key) == MBEDTLS_PK_NONE)
+    if (mbedtls_pk_get_bitlen(&ctx->key) == 0)
         return;
 
     mbedtls_ssl_conf_own_cert(&ctx->conf, &ctx->cert, &ctx->key);
@@ -246,7 +263,9 @@ int ssl_load_key_file(struct ssl_context *ctx, const char *file)
 {
     int ret;
 
-#if (MBEDTLS_VERSION_NUMBER >= 0x03000000)
+#if MBEDTLS_VERSION_MAJOR >= 4
+    ret = mbedtls_pk_parse_keyfile(&ctx->key, file, NULL);
+#elif (MBEDTLS_VERSION_NUMBER >= 0x03000000)
     ret = mbedtls_pk_parse_keyfile(&ctx->key, file, NULL, urandom, NULL);
 #else
     ret = mbedtls_pk_parse_keyfile(&ctx->key, file, NULL);
@@ -390,12 +409,23 @@ void ssl_set_server_name(struct ssl *ssl, const char *name)
             return SSL_WANT_WRITE;                  \
     } while (0)
 
+/*
+ * Mbed TLS 4.x always reports TLS 1.3 NewSessionTicket messages, which
+ * is not an error: the operation just has to be called again.
+ */
+#ifdef MBEDTLS_ERR_SSL_RECEIVED_NEW_SESSION_TICKET
+#define ssl_new_session_ticket(ret) (ret == MBEDTLS_ERR_SSL_RECEIVED_NEW_SESSION_TICKET)
+#else
+#define ssl_new_session_ticket(ret) 0
+#endif
+
 static void ssl_verify_cert(mbedtls_ssl_context *ssl, void (*on_verify_error)(int error, const char *str, void *arg), void *arg)
 {
     const char *msg = NULL;
     int r;
 
-    r = mbedtls_ssl_get_verify_result(ssl);
+    /* Mbed TLS 4.x reports a skipped verification (VERIFY_NONE) as a flag */
+    r = mbedtls_ssl_get_verify_result(ssl) & ~MBEDTLS_X509_BADCERT_SKIP_VERIFY;
 
     if (r & MBEDTLS_X509_BADCERT_EXPIRED)
         msg = "certificate has expired";
@@ -419,7 +449,10 @@ static int ssl_handshake(struct ssl *ssl, bool server,
 
     ssl->err = 0;
 
-    r = mbedtls_ssl_handshake(ssl_to_mbedtls_ssl(ssl));
+    do {
+        r = mbedtls_ssl_handshake(ssl_to_mbedtls_ssl(ssl));
+    } while (ssl_new_session_ticket(r));
+
     if (r == 0) {
         ssl_verify_cert(ssl_to_mbedtls_ssl(ssl), on_verify_error, arg);
         return SSL_OK;
@@ -452,6 +485,9 @@ int ssl_write(struct ssl *ssl, const void *buf, int len)
     while (done != len) {
         ret = mbedtls_ssl_write(ssl_to_mbedtls_ssl(ssl), (const unsigned char *)buf + done, len - done);
 
+        if (ssl_new_session_ticket(ret))
+            continue;
+
         if (ret < 0) {
             ssl_need_retry(ret);
             ssl->err = ret;
@@ -466,7 +502,11 @@ int ssl_write(struct ssl *ssl, const void *buf, int len)
 
 int ssl_read(struct ssl *ssl, void *buf, int len)
 {
-    int ret = mbedtls_ssl_read(ssl_to_mbedtls_ssl(ssl), (unsigned char *)buf, len);
+    int ret;
+
+    do {
+        ret = mbedtls_ssl_read(ssl_to_mbedtls_ssl(ssl), (unsigned char *)buf, len);
+    } while (ssl_new_session_ticket(ret));
 
     ssl->err = 0;
 
