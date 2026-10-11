@@ -14,7 +14,13 @@ find_package(PkgConfig QUIET)
 
 pkg_check_modules(OPENSSL openssl)
 
-if (NOT OPENSSL_FOUND)
+if (OPENSSL_FOUND)
+    # Use the variables that FindOpenSSL sets. pkg_check_modules() puts only the
+    # library names into OPENSSL_LIBRARIES, while OPENSSL_LDFLAGS also has the
+    # library directory.
+    set(OPENSSL_INCLUDE_DIR ${OPENSSL_INCLUDE_DIRS})
+    set(OPENSSL_LIBRARIES ${OPENSSL_LDFLAGS})
+else()
     find_package(OpenSSL)
 endif()
 
