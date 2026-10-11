@@ -316,6 +316,14 @@ void ssl_set_server_name(struct ssl *ssl, const char *name)
     else
 #endif
         wolfSSL_check_domain_name(ossl, name);
+#elif OPENSSL_VERSION_NUMBER >= 0x40000000L
+    /* OpenSSL 4.0 deprecated SSL_set1_host() in favour of separate calls for names and addresses */
+    SSL_set_hostflags(ossl, X509_CHECK_FLAG_NO_PARTIAL_WILDCARDS);
+
+    if (is_ip)
+        SSL_set1_ipaddr(ossl, name);
+    else
+        SSL_set1_dnsname(ossl, name);
 #elif OPENSSL_VERSION_NUMBER >= 0x30000000L
     SSL_set_hostflags(ossl, X509_CHECK_FLAG_NO_PARTIAL_WILDCARDS);
     SSL_set1_host(ossl, name);
